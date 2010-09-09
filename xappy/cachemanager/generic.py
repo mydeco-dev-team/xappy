@@ -433,6 +433,50 @@ class KeyValueStoreCacheManager(InverterMixIn, UserDict.DictMixin,
         raise ValueError("Hash values collide: stored query string is %r, "
                          "query string is %r" % (stored_str, query_str))
 
+    def set_queryid(self, query_str, queryid):
+        """Set the query id for query_str.
+
+        queryid must be an integer.
+
+        Raises ValueError if either the query has an id set already, or if
+        queryid is already used for a query.  Raises these errors even if the
+        stored values are the same as the new value - ie, you must only set an
+        id once.
+
+        Warning - experimental method - untested.
+
+        """
+        queryid = int(queryid)
+        query_key = self._make_query_key(query_str)
+        v = self[query_key]
+        if len(v) != 0:
+            # A value was already stored in the key.  Complain appropriately.
+            stored_str, retval = self.decode(v)
+            if stored_str == query_str:
+                raise ValueError("A queryid was already set for query %r" %
+                                 query_str)
+            raise ValueError("Hash values collide: stored query string is %r, "
+                             "query string is %r" % (stored_str, query_str))
+        id_key = 'S' + str(queryid)
+        if len(self[id_key]) != 0:
+            # A query was already stored for the id.  Complain.
+            raise ValueError("A query was already set for queryid %r" %
+                             queryid)
+
+        # No conflict - set the ID.
+        self[query_key] = self.encode((query_str, queryid))
+        self[id_key] = query_str
+
+        # Update the next ID value, in case set_queryid and get_or_make_queryid
+        # are both used.
+        v = self['I']
+        if len(v) == 0:
+            nextid = 0
+        else:
+            nextid = self.decode_int(v)
+        if nextid <= queryid:
+            self['I'] = self.encode_int(queryid + 1)
+
     @staticmethod
     def make_hit_chunk_key(queryid, chunk):
         """Make the key for looking up a particular chunk for a given queryid.
