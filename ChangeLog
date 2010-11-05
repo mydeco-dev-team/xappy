@@ -1,3 +1,9 @@
+Fri Nov 05 13:14:23 GMT 2010  Richard Boulton <richard@tartarus.org>
+
+	* xappy/indexerconnection.py: Add documentation comment
+	  advising that apply_cached_items() should probably be called
+	  here.
+
 Thu Sep 09 15:25:08 GMT 2010  Richard Boulton <richard@tartarus.org>
 
 	* xappy/cachemanager/generic.py: Add set_queryid() method, to allow

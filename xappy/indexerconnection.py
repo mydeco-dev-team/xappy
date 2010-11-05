@@ -766,6 +766,10 @@ class IndexerConnection(object):
         The cache_manager supplied must currently be an instance (or subclass)
         of KeyValueStoreCacheManager.
 
+        Note that you want to call apply_cached_items() after (or before)
+        calling this method if you want the internal cache to be updated when
+        documents are deleted.
+
         """
         if self._index is None:
             raise errors.IndexerError("IndexerConnection has been closed")
