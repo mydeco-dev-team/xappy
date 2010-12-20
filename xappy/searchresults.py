@@ -84,6 +84,8 @@ class SearchResult(ProcessedDocument):
         self.rank = msetitem.rank
         self.weight = msetitem.weight
         self.percent = msetitem.percent
+        self.collapse_count = getattr(msetitem, 'collapse_count', None)
+        self.collapse_key = getattr(msetitem, 'collapse_key', None)
         self._term_weights = context.term_weights
         self._conn = context.conn
         self._query = context.query
