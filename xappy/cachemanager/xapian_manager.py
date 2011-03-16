@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 # Copyright (C) 2009 Richard Boulton
+# Copyright (C) 2011 Bruno Rezende
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +28,10 @@ __docformat__ = "restructuredtext en"
 import generic
 import os
 import shutil
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import xapian
 
 class XapianCacheManager(generic.KeyValueStoreCacheManager):
@@ -40,11 +45,14 @@ class XapianCacheManager(generic.KeyValueStoreCacheManager):
     provide other implementations of iter_by_docid(), which may be more
     efficient for some situations.
 
+    Multiple caches may be used by specifiying differing id numbers for them.
+
     """
-    def __init__(self, dbpath, chunksize=None):
+    def __init__(self, dbpath, chunksize=None, id='1'):
         self.dbpath = dbpath
         self.db = None
         self.writable = False
+        self.id = id
         generic.KeyValueStoreCacheManager.__init__(self, chunksize)
 
     def __getitem__(self, key):
@@ -186,3 +194,27 @@ class XapianSelfInvertingCacheManager(XapianCacheManager):
 
         finally:
             invdb.close()
+
+encode = lambda x: json.dumps(x, 2)
+decode = json.loads
+
+def get_caches(conn):
+    """Get details of all the caches applied to a connection.
+
+    """
+    caches_meta = conn._index.get_metadata('caches')
+    return decode(caches_meta) if caches_meta else {}
+
+def set_caches(iconn):
+    """Set details of all the caches applied to a connection.
+
+    """
+    iconn._index.set_metadata('caches', encode(iconn._caches))
+
+BASE_CACHE_SLOT = 10000
+
+def cache_manager_slot_start(conn):
+    if not hasattr(conn, '_caches'):
+        conn._caches = get_caches(conn)
+    cache_specific_slot = conn._caches.get(conn.cache_manager.id, 0)
+    return BASE_CACHE_SLOT + cache_specific_slot

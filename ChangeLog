@@ -1,3 +1,10 @@
+Wed Mar 16 13:37:17 GMT 2011  Richard Boulton <richard@tartarus.org>
+
+	* xappy/cachemanager/generic.py,xappy/cachemanager/xapian_manager.py,
+	  xappy/indexerconnection.py,xappy/searchconnection.py,
+	  xappy/unittests/multiple_caches.py: Patch from Bruno Rezende -
+	  allow multiple caches to be applied.  Closes ticket #36.
+
 Mon Dec 20 14:24:39 GMT 2010  Richard Boulton <richard@tartarus.org>
 
 	* xappy/searchresults.py,xappy/unittests/collapse.py: Add access to

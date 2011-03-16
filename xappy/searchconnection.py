@@ -1,6 +1,7 @@
 # Copyright (C) 2007,2008,2009 Lemur Consulting Ltd
 # Copyright (C) 2009 Pablo Hoffman
 # Copyright (C) 2009 Richard Boulton
+# Copyright (C) 2011 Bruno Rezende
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +35,7 @@ import itertools
 import xapian
 from cache_search_results import CacheResultOrdering
 import cachemanager
+from cachemanager.xapian_manager import cache_manager_slot_start
 from datastructures import UnprocessedDocument, ProcessedDocument
 from fieldactions import ActionContext, FieldActions, \
          ActionSet, SortableMarshaller, convert_range_to_term, \
@@ -80,10 +82,6 @@ class SearchConnection(object):
 
     _index = None
 
-    # Slots after this number are used for the cache manager.
-    # FIXME - don't hard-code this - put it in the settings instead?
-    _cache_manager_slot_start = 10000
-
     def __init__(self, indexpath):
         """Create a new connection to the index for searching.
 
@@ -107,6 +105,11 @@ class SearchConnection(object):
             self._index = None
             raise
         self._imgterms_cache = {}
+
+    # Slots after this number are used for the cache manager.
+    @property
+    def _cache_manager_slot_start(self):
+        return cache_manager_slot_start(self)
 
     def __del__(self):
         self.close()

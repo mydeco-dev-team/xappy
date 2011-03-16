@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 # Copyright (C) 2009,2010 Richard Boulton
+# Copyright (C) 2011 Bruno Rezende
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -476,6 +477,14 @@ class KeyValueStoreCacheManager(InverterMixIn, UserDict.DictMixin,
             nextid = self.decode_int(v)
         if nextid <= queryid:
             self['I'] = self.encode_int(queryid + 1)
+
+    def num_cached_queries(self):
+        v = self['I']
+        if len(v) == 0:
+            currentid = 0
+        else:
+            currentid = self.decode_int(v)
+        return currentid + 1
 
     @staticmethod
     def make_hit_chunk_key(queryid, chunk):

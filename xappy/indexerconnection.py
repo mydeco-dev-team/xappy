@@ -1,5 +1,6 @@
 # Copyright (C) 2007,2008,2009 Lemur Consulting Ltd
 # Copyright (C) 2009 Richard Boulton
+# Copyright (C) 2011 Bruno Rezende
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +30,9 @@ import xapian
 
 import cachemanager
 from datastructures import *
+from cachemanager.xapian_manager import BASE_CACHE_SLOT, \
+    cache_manager_slot_start, get_caches, set_caches
+
 import errors
 from fieldactions import ActionContext, FieldActions, ActionSet
 import fieldmappings
@@ -57,10 +61,6 @@ class IndexerConnection(object):
     """
 
     _index = None
-
-    # Slots after this number are used for the cache manager.
-    # FIXME - don't hard-code this - put it in the settings instead?
-    _cache_manager_slot_start = 10000
 
     # Maximum number of hits ever stored in a cache for a single query.
     # This is just used to calculate an appropriate value to store for the
@@ -121,6 +121,11 @@ class IndexerConnection(object):
         # This can be removed once Xapian implements this itself.
         self._mem_buffered = 0
         self.set_max_mem_use()
+
+    # Slots after this number are used for the cache manager.
+    @property
+    def _cache_manager_slot_start(self):
+        return cache_manager_slot_start(self)
 
     def __del__(self):
         self.close()
@@ -413,18 +418,7 @@ class IndexerConnection(object):
         xapdoc = document.prepare()
 
         if self._index.get_metadata('_xappy_hascache'):
-            if store_only:
-                # Remove any cached items from the cache - the document is no
-                # longer wanted in search results.
-                self._remove_cached_items(id, xapid)
-            else:
-                # Copy any cached query items over to the new document.
-                olddoc, olddocid = self._get_xapdoc(id, xapid)
-                if olddoc is not None:
-                    for value in olddoc.values():
-                        if value.num < self._cache_manager_slot_start:
-                            continue
-                        xapdoc.add_value(value.num, value.value)
+            self._replace_cached_item(xapdoc, id, xapid, store_only)
 
         if xapid is None:
             self._index.replace_document('Q' + id, xapdoc)
@@ -435,6 +429,20 @@ class IndexerConnection(object):
             self._mem_buffered += self._get_bytes_used_by_doc_terms(xapdoc)
             if self._mem_buffered > self._max_mem:
                 self.flush()
+
+    def _replace_cached_item(self, newdoc, id, xapid, store_only):
+        if store_only:
+            # Remove any cached items from the cache - the document is no
+            # longer wanted in search results.
+            self._remove_cached_items(id, xapid)
+        else:
+            # Copy any cached query items over to the new document.
+            olddoc, _ = self._get_xapdoc(id, xapid)
+            if olddoc is not None:
+                for value in olddoc.values():
+                    if value.num < BASE_CACHE_SLOT:
+                        continue
+                    newdoc.add_value(value.num, value.value)
 
     def _make_synonym_key(self, original, field):
         """Make a synonym key (ie, the term or group of terms to store in
@@ -670,8 +678,17 @@ class IndexerConnection(object):
             return
 
         #print "Removing docid=%d" % xapid
+        # FIXME: this will only remove the hits from the set cache
+        # manager, if we have multiple applied caches, the others won't be
+        # updated.  This means that currently, if multiple caches are applied
+        # and document removals happen, some of the caches will get out of
+        # date; multiple caches are therefore not really suitable for use in
+        # production systems - they are however useful for experimenting with
+        # different caching algorithms.
         for value in doc.values():
-            if value.num < self._cache_manager_slot_start:
+            base_slot = self._cache_manager_slot_start
+            upper_slot = self._cache_manager_slot_start + self.cache_manager.num_cached_queries()
+            if not (base_slot <= value.num < upper_slot):
                 continue
             rank = int(self._cache_manager_max_hits -
                        xapian.sortable_unserialise(value.value))
@@ -679,7 +696,7 @@ class IndexerConnection(object):
                 value.num - self._cache_manager_slot_start,
                 ((rank, xapid),))
 
-    def delete(self, id=None, xapid=None):
+    def delete(self, id=None, xapid=None, ignore_cache=False):
         """Delete a document from the search engine index.
 
         If the id does not already exist in the database, this method
@@ -689,12 +706,15 @@ class IndexerConnection(object):
         the Xapian document ID to delete.  In this case, the Xappy document ID
         will be not be checked.
 
+        If `ignore_cache` is set to True, items will not be removed from any
+        caches which are applied to the system.
+
         """
         if self._index is None:
             raise errors.IndexerError("IndexerConnection has been closed")
 
         # Remove any cached items from the cache.
-        if self._index.get_metadata('_xappy_hascache'):
+        if not ignore_cache and self._index.get_metadata('_xappy_hascache'):
             self._remove_cached_items(id, xapid)
 
         # Now, remove the actual document.
@@ -733,6 +753,18 @@ class IndexerConnection(object):
         if self.cache_manager is None:
             raise RuntimeError("Need to set a cache manager before calling "
                                "apply_cached_items()")
+
+        self._caches = get_caches(self)
+
+        cache_id = self.cache_manager.id
+        num_cached_queries = self.cache_manager.num_cached_queries()
+        num_cache_slots = int(self._index.get_metadata('num_cache_slots') or '0')
+        num_cache_slots += num_cached_queries
+        self._index.set_metadata('num_cache_slots', str(num_cache_slots))
+
+        if cache_id not in self._caches:
+            self._caches[cache_id] = num_cache_slots
+        set_caches(self)
 
         # Remember that a cache manager has been applied in the metadata, so
         # errors can be raised if it's not set during future modifications.
