@@ -282,7 +282,10 @@ class SearchResult(ProcessedDocument):
                 elif value <= end:
                     in_range = True
             if in_range:
-                relevant_items.setdefault(field, []).append((-1, 0))
+                # if we have multiple values for a field, xappy will always
+                # index the last value
+                offset = len(self.data[field]) - 1
+                relevant_items.setdefault(field, []).append((-1, offset))
                 field_scores[field] = field_scores.get(field, 0) + 1
 
         # Build a list of the fields which match the query, counting the number

@@ -43,6 +43,7 @@ class TestFieldGroups(TestCase):
         doc.extend((
                     ('a', 'Africa America'),
                     ('a', 'Uninteresting'),
+                    ('h', '0.5'),
                     xappy.FieldGroup([('b', 'Andes America'), ('c', 'Arctic America')]),
                     ('b', 'Notinteresting'),
                     ('d', 'Australia'),
@@ -94,14 +95,14 @@ class TestFieldGroups(TestCase):
         self.sconn.close()
 
     def test_field_groups(self):
-        """Test field groups for freetext fields.
+        """Test field groups.
 
         """
         # Test internal representation of groups
         id = list(self.sconn.iterids())[0]
         doc = self.sconn.get_document(id)
         self.assertEqual(doc._get_groups(),
-                         [(('b', 0), ('c', 0)), (('e', 0),), (('g', 0), ('h', 0)), (('j', 0), ('k', 0)), (('j', 0), ('k', 0))])
+                         [(('b', 0), ('c', 0)), (('e', 0),), (('g', 0), ('h', 1)), (('j', 0), ('k', 0)), (('j', 0), ('k', 0))])
 
         id = list(self.sconn.iterids())[1]
         doc = self.sconn.get_document(id)
@@ -136,7 +137,7 @@ class TestFieldGroups(TestCase):
                           'd': ['Australia'],
                           'g': ['Atlantic'],
                           'f': ['Ave'],
-                          'h': ['1.0'],
+                          'h': ['0.5', '1.0'],
                           'j': ['Same value'],
                           'k': ['Same value 2']})
         self.assertEqual(results[0].grouped_data,
@@ -145,6 +146,7 @@ class TestFieldGroups(TestCase):
                           'b': ['Notinteresting'],
                           'd': ['Australia'],
                           'f': ['Ave'],
+                          'h': ['0.5'],
                           },
                           [{
                            'b': ['Andes America'],
@@ -174,6 +176,7 @@ class TestFieldGroups(TestCase):
                                  'b': ['Notinteresting'],
                                  'd': ['Australia'],
                                  'f': ['Ave'],
+                                 'h': ['0.5'],
                                 },
                           0: {
                                'b': ['Andes America'],
@@ -256,6 +259,27 @@ class TestFieldGroups(TestCase):
                          (
                           ('b', (('Andes America', 0), ('Notinteresting', None))),
                           ('a', (('Africa America', None),)),
+                         ))
+
+        # test relevant_data for range queries
+        q = self.sconn.query_facet('h', ('0.9', '1.1'))
+        results = q.search(0, 10)
+
+        self.assertEqual(results[0].relevant_data(simple=False),
+                         (('h', ('1.0',)),
+                         ))
+
+        self.assertEqual(results[0].relevant_data(simple=False,
+                                                  groupnumbers=True),
+                         (('h', (('1.0', 2),)),
+                         ))
+
+        self.assertEqual(results[0].relevant_data(),
+                         (('h', ('1.0',)),
+                         ))
+
+        self.assertEqual(results[0].relevant_data(groupnumbers=True),
+                         (('h', (('1.0', 2),)),
                          ))
 
 if __name__ == '__main__':
