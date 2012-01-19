@@ -55,7 +55,8 @@ class FieldMappings(object):
 
         Prefixes are uppercase letters, and start with 'X' (this is a Xapian
         convention, for compatibility with other Xapian tools: other starting
-        letters are reserved for special meanings):
+        letters are reserved for special meanings). The letter R can only
+        appear in the end of a prefix:
 
         >>> maps = FieldMappings()
         >>> maps._genPrefix()
@@ -63,20 +64,26 @@ class FieldMappings(object):
         >>> maps._genPrefix()
         'XB'
         >>> [maps._genPrefix() for i in xrange(60)]
-        ['XC', 'XD', 'XE', 'XF', 'XG', 'XH', 'XI', 'XJ', 'XK', 'XL', 'XM', 'XN', 'XO', 'XP', 'XQ', 'XR', 'XS', 'XT', 'XU', 'XV', 'XW', 'XX', 'XY', 'XZ', 'XAA', 'XBA', 'XCA', 'XDA', 'XEA', 'XFA', 'XGA', 'XHA', 'XIA', 'XJA', 'XKA', 'XLA', 'XMA', 'XNA', 'XOA', 'XPA', 'XQA', 'XRA', 'XSA', 'XTA', 'XUA', 'XVA', 'XWA', 'XXA', 'XYA', 'XZA', 'XAB', 'XBB', 'XCB', 'XDB', 'XEB', 'XFB', 'XGB', 'XHB', 'XIB', 'XJB']
+        ['XC', 'XD', 'XE', 'XF', 'XG', 'XH', 'XI', 'XJ', 'XK', 'XL', 'XM', 'XN', 'XO', 'XP', 'XQ', 'XR', 'XS', 'XT', 'XU', 'XV', 'XW', 'XX', 'XY', 'XZ', 'XAA', 'XBA', 'XCA', 'XDA', 'XEA', 'XFA', 'XGA', 'XHA', 'XIA', 'XJA', 'XKA', 'XLA', 'XMA', 'XNA', 'XOA', 'XPA', 'XQA', 'XSA', 'XTA', 'XUA', 'XVA', 'XWA', 'XXA', 'XYA', 'XZA', 'XAB', 'XBB', 'XCB', 'XDB', 'XEB', 'XFB', 'XGB', 'XHB', 'XIB', 'XJB', 'XKB']
         >>> maps = FieldMappings()
         >>> [maps._genPrefix() for i in xrange(27*26 + 5)][-10:]
-        ['XVZ', 'XWZ', 'XXZ', 'XYZ', 'XZZ', 'XAAA', 'XBAA', 'XCAA', 'XDAA', 'XEAA']
+        ['XWAA', 'XXAA', 'XYAA', 'XZAA', 'XABA', 'XBBA', 'XCBA', 'XDBA', 'XEBA', 'XFBA']
         """
-        res = []
-        self._prefixcount += 1
-        num = self._prefixcount
-        while num != 0:
-            ch = (num - 1) % 26
-            res.append(chr(ch + ord('A')))
-            num -= ch
-            num = num // 26
-        return 'X' + ''.join(res)
+        def _valid(prefix):
+            return len(prefix) > 0 and not ('R' in prefix[:-1])
+        
+        prefix = ''
+        while not _valid(prefix):
+            res = []
+            self._prefixcount += 1
+            num = self._prefixcount
+            while num != 0:
+                ch = (num - 1) % 26
+                res.append(chr(ch + ord('A')))
+                num -= ch
+                num = num // 26
+            prefix = 'X' + ''.join(res)
+        return prefix
 
     def get_fieldname_from_prefix(self, prefix):
         """Get a fieldname from a prefix.
