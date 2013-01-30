@@ -15,7 +15,7 @@ All changes are logged in the ChangeLog.
 Prerequisites
 -------------
 
-- Python.  Version 2.4 or 2.5 should be suitable.  Earlier versions may not
+- Python.  Versions 2.4 to 2.7 should be suitable.  Earlier versions may not
   work correctly, and versions earlier than 2.2 will certainly not work
   (since they are not supported by Xapian).
 
