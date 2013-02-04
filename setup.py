@@ -95,7 +95,7 @@ to Xappy.
 
 
 setup(name = "xappy",
-      version = "0.6.0", # update this in xappy/__init__.py, too.  FIXME - get automatically
+      version = "0.7.0", # update this in xappy/__init__.py, too.  FIXME - get automatically
       author = "Richard Boulton",
       author_email = "richard@lemurconsulting.com",
       maintainer = "Richard Boulton",
