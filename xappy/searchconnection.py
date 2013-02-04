@@ -109,7 +109,7 @@ class SearchConnection(object):
     # Slots after this number are used for the cache manager.
     @property
     def _cache_manager_slot_start(self):
-        return cache_manager_slot_start(self)
+        return cache_manager_slot_start(self, self.cache_manager.id)
 
     def __del__(self):
         self.close()

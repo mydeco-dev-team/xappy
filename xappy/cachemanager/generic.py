@@ -278,6 +278,20 @@ class CacheManager(object):
         """
         raise NotImplementedError
 
+    def remove_cached_items(self, iconn, doc, xapid):
+        """Remove all cache info related to a document
+
+        """
+        raise NotImplementedError
+
+    def replace(self, olddoc, newdoc):
+        """If there are cache info stored in the xapian doc, give a chance for
+        the cache manager to do something useful with it
+
+        """
+        raise NotImplementedError
+
+
 class KeyValueStoreCacheManager(InverterMixIn, UserDict.DictMixin,
                                 CacheManager):
     """A manager that stores the cached items in chunks in a key-value store.
@@ -484,7 +498,7 @@ class KeyValueStoreCacheManager(InverterMixIn, UserDict.DictMixin,
             currentid = 0
         else:
             currentid = self.decode_int(v)
-        return currentid + 1
+        return currentid
 
     @staticmethod
     def make_hit_chunk_key(queryid, chunk):

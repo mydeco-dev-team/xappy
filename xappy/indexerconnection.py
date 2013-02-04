@@ -30,8 +30,6 @@ import xapian
 
 import cachemanager
 from datastructures import *
-from cachemanager.xapian_manager import BASE_CACHE_SLOT, \
-    cache_manager_slot_start, get_caches, set_caches
 
 import errors
 from fieldactions import ActionContext, FieldActions, ActionSet
@@ -61,11 +59,6 @@ class IndexerConnection(object):
     """
 
     _index = None
-
-    # Maximum number of hits ever stored in a cache for a single query.
-    # This is just used to calculate an appropriate value to store for the
-    # weight for this item.
-    _cache_manager_max_hits = 1000000
 
     def __init__(self, indexpath, dbtype=None):
         """Create a new connection to the index.
@@ -121,11 +114,6 @@ class IndexerConnection(object):
         # This can be removed once Xapian implements this itself.
         self._mem_buffered = 0
         self.set_max_mem_use()
-
-    # Slots after this number are used for the cache manager.
-    @property
-    def _cache_manager_slot_start(self):
-        return cache_manager_slot_start(self)
 
     def __del__(self):
         self.close()
@@ -439,10 +427,7 @@ class IndexerConnection(object):
             # Copy any cached query items over to the new document.
             olddoc, _ = self._get_xapdoc(id, xapid)
             if olddoc is not None:
-                for value in olddoc.values():
-                    if value.num < BASE_CACHE_SLOT:
-                        continue
-                    newdoc.add_value(value.num, value.value)
+                self.cache_manager.replace(olddoc, newdoc)
 
     def _make_synonym_key(self, original, field):
         """Make a synonym key (ie, the term or group of terms to store in
@@ -676,27 +661,9 @@ class IndexerConnection(object):
         doc, xapid = self._get_xapdoc(docid, xapid)
         if doc is None:
             return
+        self.cache_manager.remove_cached_items(self, doc, xapid)
 
-        #print "Removing docid=%d" % xapid
-        # FIXME: this will only remove the hits from the set cache
-        # manager, if we have multiple applied caches, the others won't be
-        # updated.  This means that currently, if multiple caches are applied
-        # and document removals happen, some of the caches will get out of
-        # date; multiple caches are therefore not really suitable for use in
-        # production systems - they are however useful for experimenting with
-        # different caching algorithms.
-        for value in doc.values():
-            base_slot = self._cache_manager_slot_start
-            upper_slot = self._cache_manager_slot_start + self.cache_manager.num_cached_queries()
-            if not (base_slot <= value.num < upper_slot):
-                continue
-            rank = int(self._cache_manager_max_hits -
-                       xapian.sortable_unserialise(value.value))
-            self.cache_manager.remove_hits(
-                value.num - self._cache_manager_slot_start,
-                ((rank, xapid),))
-
-    def delete(self, id=None, xapid=None, ignore_cache=False):
+    def delete(self, id=None, xapid=None):
         """Delete a document from the search engine index.
 
         If the id does not already exist in the database, this method
@@ -706,15 +673,12 @@ class IndexerConnection(object):
         the Xapian document ID to delete.  In this case, the Xappy document ID
         will be not be checked.
 
-        If `ignore_cache` is set to True, items will not be removed from any
-        caches which are applied to the system.
-
         """
         if self._index is None:
             raise errors.IndexerError("IndexerConnection has been closed")
 
         # Remove any cached items from the cache.
-        if not ignore_cache and self._index.get_metadata('_xappy_hascache'):
+        if self._index.get_metadata('_xappy_hascache'):
             self._remove_cached_items(id, xapid)
 
         # Now, remove the actual document.
@@ -736,53 +700,7 @@ class IndexerConnection(object):
         self.cache_manager = cache_manager
 
     def apply_cached_items(self):
-        """Update the index with references to cached items.
-        
-        This reads all the cached items from the cache manager, and applies
-        them to the index.  This allows efficient lookup of the cached ranks
-        when performing a search, and when deleting items from the the
-        database.
-
-        If any documents in the cache are not present in this index, they are
-        silently ignored: the assumption is that in this case, the index is a
-        subset of the cached database.
-
-        """
-        if self._index is None:
-            raise errors.IndexerError("IndexerConnection has been closed")
-        if self.cache_manager is None:
-            raise RuntimeError("Need to set a cache manager before calling "
-                               "apply_cached_items()")
-
-        self._caches = get_caches(self)
-
-        cache_id = self.cache_manager.id
-        num_cached_queries = self.cache_manager.num_cached_queries()
-        num_cache_slots = int(self._index.get_metadata('num_cache_slots') or '0')
-        num_cache_slots += num_cached_queries
-        self._index.set_metadata('num_cache_slots', str(num_cache_slots))
-
-        if cache_id not in self._caches:
-            self._caches[cache_id] = num_cache_slots
-        set_caches(self)
-
-        # Remember that a cache manager has been applied in the metadata, so
-        # errors can be raised if it's not set during future modifications.
-        self._index.set_metadata('_xappy_hascache', '1')
-
-        myiter = self.cache_manager.iter_by_docid()
-        for xapid, items in myiter:
-            try:
-                xapdoc = self._index.get_document(xapid)
-            except xapian.DocNotFoundError:
-                # Ignore the document if not found, to allow a global cache to
-                # be applied to a subdatabase.
-                continue
-            for queryid, rank in items:
-                xapdoc.add_value(self._cache_manager_slot_start + queryid,
-                    xapian.sortable_serialise(self._cache_manager_max_hits -
-                                              rank))
-            self._index.replace_document(xapid, xapdoc)
+        self.cache_manager.apply_cached_items(self)
 
     def make_internal_cache(self):
         """Copies all items from the current cache manager into this index.

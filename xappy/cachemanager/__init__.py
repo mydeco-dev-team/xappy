@@ -28,6 +28,7 @@ from generic import CacheManager, KeyValueStoreCacheManager
 try:
     from xapian_manager import \
         XapianCacheManager, \
-        XapianSelfInvertingCacheManager
+        XapianSelfInvertingCacheManager,\
+        XapianMultipleCachesManager
 except ImportError:
     pass
